@@ -3,9 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Suggestion Form</title>
+    <title>TAXISYS Investor Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+        let barChart = null;
+        let pieChart = null;
+        let positionChart = null;
+
+        function clearMessages() {
+            document.getElementById("live-message").textContent = "";
+            document.getElementById("live-error").textContent = "";
+        }
+
+        function showMessage(message) {
+            clearMessages();
+            document.getElementById("live-message").textContent = message;
+        }
+
+        function showError(message) {
+            clearMessages();
+            document.getElementById("live-error").textContent = message;
+        }
+
         async function updateTable() {
             const res = await fetch("/table");
             const html = await res.text();
@@ -16,44 +36,305 @@
             event.preventDefault();
             const form = event.target;
             const data = new FormData(form);
-            await fetch("/submit", {
+            const res = await fetch("/submit", {
                 method: "POST",
                 body: data
             });
+            if (!res.ok) {
+                showError("Failed to add entry.");
+                return;
+            }
             form.reset();
             updateTable();
+            showMessage("Entry added successfully.");
+        }
+
+        async function updatePerson(event) {
+            event.preventDefault();
+            const form = event.target;
+            const data = new FormData(form);
+            const res = await fetch("/update_person", {
+                method: "POST",
+                body: data,
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+            const payload = await res.json();
+            if (payload.success) {
+                updateTable();
+                showMessage(payload.message);
+                form.reset();
+            } else {
+                showError(payload.error || "Update failed.");
+            }
+        }
+
+        async function deletePerson(event) {
+            event.preventDefault();
+            const form = event.target;
+            const data = new FormData(form);
+            try {
+                const res = await fetch("/delete_person", {
+                    method: "POST",
+                    body: data,
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                const payload = await res.json();
+                if (payload.success) {
+                    updateTable();
+                    showMessage(payload.message);
+                    form.reset();
+                } else {
+                    showError(payload.error || "Delete failed.");
+                }
+            } catch (err) {
+                showError("Delete request failed. Check your network or server.");
+                console.error(err);
+            }
+        }
+
+        async function comparePeople(event) {
+            event.preventDefault();
+            const form = event.target;
+            const data = new FormData(form);
+            try {
+                const res = await fetch("/compare", {
+                    method: "POST",
+                    body: data,
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                const payload = await res.json();
+                if (!payload.success) {
+                    showError(payload.error || "Comparison failed.");
+                    document.getElementById("compare-results").innerHTML = "";
+                    return;
+                }
+
+                clearMessages();
+                renderCompareResults(payload);
+            } catch (err) {
+                showError("Comparison failed. Please try again.");
+                console.error(err);
+                document.getElementById("compare-results").innerHTML = "";
+            }
+        }
+
+        function destroyChart(chart) {
+            if (chart) {
+                chart.destroy();
+            }
+        }
+
+        function renderCompareResults(payload) {
+            const compareContainer = document.getElementById("compare-results");
+            compareContainer.innerHTML = `
+                <div class="compare-summary">
+                    <h3>Comparison result for ${payload.selected.map(p => p.name).join(", ")}</h3>
+                    ${payload.missing && payload.missing.length ? `<p class="compare-warning">Missing: ${payload.missing.join(", ")}</p>` : ""}
+                </div>
+                <div class="compare-table-card">
+                    <h4>Investor data</h4>
+                    <div class="compare-table-wrapper">
+                        <table class="compare-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Age</th>
+                                    <th>Salary</th>
+                                    <th>YOE</th>
+                                    <th>Bonus %</th>
+                                    <th>Position</th>
+                                    <th>Expert</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${payload.selected.map(person => `
+                                    <tr>
+                                        <td>${person.name}</td>
+                                        <td>${person.age}</td>
+                                        <td>${person.salary}</td>
+                                        <td>${person.yoe}</td>
+                                        <td>${person.bonus_percent}</td>
+                                        <td>${person.position}</td>
+                                        <td>${person.investment_expert}</td>
+                                    </tr>
+                                `).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            const labels = payload.chart_data.labels;
+            const metrics = payload.chart_data.metrics;
+            const expertise = payload.chart_data.expertise;
+            const positions = payload.chart_data.positions;
+
+            if (typeof Chart === "undefined") {
+                compareContainer.innerHTML += `
+                    <div class="compare-error">Chart.js failed to load. Results are shown in table form above.</div>
+                `;
+                return;
+            }
+
+            compareContainer.innerHTML += `
+                <div class="compare-chart-row">
+                    <div class="chart-card">
+                        <h4>Numeric comparison</h4>
+                        <canvas id="barChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h4>Expertise split</h4>
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+                <div class="compare-chart-row">
+                    <div class="chart-card full-width">
+                        <h4>Position distribution</h4>
+                        <canvas id="positionChart"></canvas>
+                    </div>
+                </div>
+            `;
+
+            destroyChart(barChart);
+            destroyChart(pieChart);
+            destroyChart(positionChart);
+
+            const barCtx = document.getElementById("barChart").getContext("2d");
+            barChart = new Chart(barCtx, {
+                type: "bar",
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: "Age",
+                            data: metrics.Age,
+                            backgroundColor: "rgba(0, 224, 255, 0.7)",
+                            borderColor: "rgba(0, 224, 255, 1)",
+                            borderWidth: 1
+                        },
+                        {
+                            label: "Salary",
+                            data: metrics.Salary,
+                            backgroundColor: "rgba(92, 159, 255, 0.7)",
+                            borderColor: "rgba(92, 159, 255, 1)",
+                            borderWidth: 1
+                        },
+                        {
+                            label: "YOE",
+                            data: metrics.YOE,
+                            backgroundColor: "rgba(255, 193, 7, 0.7)",
+                            borderColor: "rgba(255, 193, 7, 1)",
+                            borderWidth: 1
+                        },
+                        {
+                            label: "Bonus %",
+                            data: metrics.BonusPercent,
+                            backgroundColor: "rgba(102, 187, 106, 0.7)",
+                            borderColor: "rgba(102, 187, 106, 1)",
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: false, ticks: { color: "#ffffff" } },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: "#ffffff"
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: "#ffffff" } }
+                    }
+                }
+            });
+
+            const pieCtx = document.getElementById("pieChart").getContext("2d");
+            pieChart = new Chart(pieCtx, {
+                type: "pie",
+                data: {
+                    labels: ["Expert","Not Expert"],
+                    datasets: [{
+                        data: [expertise.yes, expertise.no],
+                        backgroundColor: ["#00e0ff", "#ff6384"],
+                        borderColor: ["#00bcd4", "#ff4d6d"],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: "#ffffff" } }
+                    }
+                }
+            });
+
+            const positionCtx = document.getElementById("positionChart").getContext("2d");
+            positionChart = new Chart(positionCtx, {
+                type: "bar",
+                data: {
+                    labels: Object.keys(positions),
+                    datasets: [{
+                        label: "Position count",
+                        data: Object.values(positions),
+                        backgroundColor: "rgba(255, 159, 64, 0.7)",
+                        borderColor: "rgba(255, 159, 64, 1)",
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: "#ffffff" } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: "#ffffff" } }
+                    }
+                }
+            });
         }
 
         window.onload = updateTable;
     </script>
 </head>
 <body>
+    <header class="app-header">
+        <div>
+            <h1>TAXISYS</h1>
+            <p>Structured investor data entry, analysis, and record management.</p>
+        </div>
+        <button type="button" onclick="updateTable()">Refresh Table</button>
+    </header>
+
     <div class="main-container">
-
-        <!-- Left Panel: Form -->
         <div class="left-panel">
-            <h2>📊 Investor Data Entry</h2>
-
+            <h2>📊 Add New Investor</h2>
             <form onsubmit="submitForm(event)" class="data-form">
-                <label for="name">Name:</label>
+                <label for="name">Name</label>
                 <input type="text" name="name" required>
 
-                <label for="age">Age:</label>
+                <label for="age">Age</label>
                 <input type="number" name="age" required>
 
-                <label for="salary">Salary:</label>
+                <label for="salary">Salary</label>
                 <input type="number" name="salary" required>
 
-                <label for="position">Position:</label>
+                <label for="position">Position</label>
                 <input type="text" name="position" required>
 
-                <label for="yoe">Years of Experience (YOE):</label>
+                <label for="yoe">Years of Experience</label>
                 <input type="number" name="yoe" required>
 
-                <label for="bonus_percent">Bonus Percentage:</label>
+                <label for="bonus_percent">Bonus Percentage</label>
                 <input type="number" step="0.1" name="bonus_percent" required>
 
-                <label for="investment_expert">Investment Expertise:</label>
+                <label for="investment_expert">Investment Expertise</label>
                 <select name="investment_expert" required>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
@@ -62,17 +343,58 @@
                 <button type="submit">➕ Add Entry</button>
             </form>
 
-            <!-- Analyze Button -->
-            <form action="/analyze" method="post" class="analyze-form">
-                <button type="submit">🔍 Analyze All Data</button>
-            </form>
+            <div class="action-group">
+                <form action="/analyze" method="post" class="secondary-form">
+                    <button type="submit">🔍 Analyze All Data</button>
+                </form>
 
-            <!-- Fetch Person Info -->
-            <form action="/fetch_person" method="post" class="fetch-form">
-                <label for="fetch_name">Fetch Investor Info by Name:</label>
-                <input type="text" name="fetch_name" placeholder="Enter name..." required>
-                <button type="submit">👤 Fetch Details</button>
-            </form>
+                <form action="/fetch_person" method="post" class="secondary-form">
+                    <label for="fetch_name">Search Investor</label>
+                    <input type="text" name="fetch_name" placeholder="Enter name..." required>
+                    <button type="submit">👤 Fetch Details</button>
+                </form>
+
+                <form onsubmit="comparePeople(event)" class="secondary-form">
+                    <label for="compare_names">Compare Investors</label>
+                    <input type="text" name="compare_names" placeholder="Name1, Name2, ..." required>
+                    <button type="submit">📊 Compare</button>
+                </form>
+
+                <form onsubmit="updatePerson(event)" class="secondary-form">
+                    <label for="update_name">Update Investor by Name</label>
+                    <input type="text" name="update_name" placeholder="Existing name" required>
+                    <div class="form-grid">
+                        <input type="number" name="update_age" placeholder="Age">
+                        <input type="number" step="0.1" name="update_salary" placeholder="Salary">
+                        <input type="text" name="update_position" placeholder="Position">
+                        <input type="number" name="update_yoe" placeholder="YOE">
+                        <input type="number" step="0.1" name="update_bonus_percent" placeholder="Bonus %">
+                        <select name="update_investment_expert">
+                            <option value="">Expertise</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                    <button type="submit">✏️ Update</button>
+                </form>
+
+                <form onsubmit="deletePerson(event)" class="secondary-form">
+                    <label for="delete_name">Delete Investor by Name</label>
+                    <input type="text" name="delete_name" placeholder="Enter name..." required>
+                    <button type="submit">🗑️ Delete</button>
+                </form>
+            </div>
+
+            {% if message %}
+                <div class="message-box success">{{ message }}</div>
+            {% endif %}
+
+            <div id="live-message" class="message-box success"></div>
+            <div id="live-error" class="message-box error"></div>
+
+            {% if error %}
+                <div class="message-box error">{{ error }}</div>
+            {% endif %}
 
             {% if person_info %}
                 <div class="insight-box">
@@ -98,12 +420,12 @@
             {% endif %}
         </div>
 
-        <!-- Right Panel: Live Table -->
         <div class="right-panel">
             <h3>📋 Submitted Data</h3>
             <div id="table-container" class="table-container">
-                <!-- DataTable will be loaded here dynamically -->
+                <!-- Data table will load here -->
             </div>
+            <div id="compare-results" class="compare-results"></div>
         </div>
     </div>
 </body>
