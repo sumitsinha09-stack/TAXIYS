@@ -231,7 +231,9 @@ def compare():
         if person.empty:
             missing.append(name)
         else:
-            selected.append(person.iloc[-1].to_dict())
+            p_dict = person.iloc[-1].to_dict()
+            p_dict = {k: (None if pd.isna(v) else v) for k, v in p_dict.items()}
+            selected.append(p_dict)
 
     if not selected:
         return jsonify({"success": False, "error": "No matching investors found."})
