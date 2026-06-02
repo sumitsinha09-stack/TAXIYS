@@ -43,11 +43,27 @@ def is_ajax():
 def get_table_html():
     df = load_data()
     if df.empty:
-        return "<p>No data yet.</p>"
+        return "<div class='no-data-card'><p>No records found. Add an investor to begin.</p></div>"
     df = df.copy()
-    if "salary" in df.columns:
-        df["salary"] = df["salary"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) else "")
-    return df.to_html(classes="data-table", index=False, border=0, justify="left")
+    
+    # Capitalize columns for a highly polished display header
+    df.columns = [col.replace('_', ' ').title() for col in df.columns]
+    
+    salary_col = "Salary"
+    bonus_col = "Bonus Percent"
+    expert_col = "Investment Expert"
+    yoe_col = "Yoe"
+    
+    if salary_col in df.columns:
+        df[salary_col] = df[salary_col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
+    if bonus_col in df.columns:
+        df[bonus_col] = df[bonus_col].apply(lambda x: f"{x}%" if pd.notna(x) else "")
+    if yoe_col in df.columns:
+        df[yoe_col] = df[yoe_col].apply(lambda x: f"{int(x)} yrs" if pd.notna(x) else "")
+    if expert_col in df.columns:
+        df[expert_col] = df[expert_col].apply(lambda x: f'<span class="badge badge-yes">Yes</span>' if str(x).lower().strip() == 'yes' else f'<span class="badge badge-no">No</span>' if str(x).lower().strip() == 'no' else str(x))
+        
+    return df.to_html(classes="data-table", index=False, border=0, justify="left", escape=False)
 
 
 def make_entry(form):

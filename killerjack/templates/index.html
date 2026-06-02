@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TAXISYS Investor Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
@@ -11,19 +17,33 @@
         let pieChart = null;
         let positionChart = null;
 
+        // Configure Chart.js dark-mode defaults
+        if (typeof Chart !== "undefined") {
+            Chart.defaults.font.family = "'Inter', system-ui, -apple-system, sans-serif";
+            Chart.defaults.font.size = 11;
+            Chart.defaults.color = "rgba(255, 255, 255, 0.7)";
+            Chart.defaults.borderColor = "rgba(255, 255, 255, 0.08)";
+        }
+
         function clearMessages() {
             document.getElementById("live-message").textContent = "";
+            document.getElementById("live-message").style.display = "none";
             document.getElementById("live-error").textContent = "";
+            document.getElementById("live-error").style.display = "none";
         }
 
         function showMessage(message) {
             clearMessages();
-            document.getElementById("live-message").textContent = message;
+            const msgEl = document.getElementById("live-message");
+            msgEl.textContent = message;
+            msgEl.style.display = "block";
         }
 
         function showError(message) {
             clearMessages();
-            document.getElementById("live-error").textContent = message;
+            const errEl = document.getElementById("live-error");
+            errEl.textContent = message;
+            errEl.style.display = "block";
         }
 
         async function updateTable() {
@@ -128,11 +148,11 @@
             const compareContainer = document.getElementById("compare-results");
             compareContainer.innerHTML = `
                 <div class="compare-summary">
-                    <h3>Comparison result for ${payload.selected.map(p => p.name).join(", ")}</h3>
-                    ${payload.missing && payload.missing.length ? `<p class="compare-warning">Missing: ${payload.missing.join(", ")}</p>` : ""}
+                    <h3>👥 Comparison result for ${payload.selected.map(p => p.name).join(", ")}</h3>
+                    ${payload.missing && payload.missing.length ? `<p class="compare-warning">⚠️ Missing from database: ${payload.missing.join(", ")}</p>` : ""}
                 </div>
                 <div class="compare-table-card">
-                    <h4>Investor data</h4>
+                    <h4>Investor Data Matrix</h4>
                     <div class="compare-table-wrapper">
                         <table class="compare-table">
                             <thead>
@@ -149,13 +169,13 @@
                             <tbody>
                                 ${payload.selected.map(person => `
                                     <tr>
-                                        <td>${person.name}</td>
+                                        <td><strong>${person.name}</strong></td>
                                         <td>${person.age}</td>
-                                        <td>${person.salary}</td>
-                                        <td>${person.yoe}</td>
-                                        <td>${person.bonus_percent}</td>
+                                        <td>$${parseFloat(person.salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                        <td>${person.yoe} yrs</td>
+                                        <td>${person.bonus_percent}%</td>
                                         <td>${person.position}</td>
-                                        <td>${person.investment_expert}</td>
+                                        <td><span class="badge badge-${person.investment_expert.toLowerCase() === 'yes' ? 'yes' : 'no'}">${person.investment_expert}</span></td>
                                     </tr>
                                 `).join("")}
                             </tbody>
@@ -171,7 +191,7 @@
 
             if (typeof Chart === "undefined") {
                 compareContainer.innerHTML += `
-                    <div class="compare-error">Chart.js failed to load. Results are shown in table form above.</div>
+                    <div class="message-box error">Chart.js failed to load. Results are shown in table form above.</div>
                 `;
                 return;
             }
@@ -179,18 +199,24 @@
             compareContainer.innerHTML += `
                 <div class="compare-chart-row">
                     <div class="chart-card">
-                        <h4>Numeric comparison</h4>
-                        <canvas id="barChart"></canvas>
+                        <h4>📊 Numeric Comparison</h4>
+                        <div class="chart-canvas-container">
+                            <canvas id="barChart"></canvas>
+                        </div>
                     </div>
                     <div class="chart-card">
-                        <h4>Expertise split</h4>
-                        <canvas id="pieChart"></canvas>
+                        <h4>🍕 Expertise Split</h4>
+                        <div class="chart-canvas-container">
+                            <canvas id="pieChart"></canvas>
+                        </div>
                     </div>
                 </div>
                 <div class="compare-chart-row">
                     <div class="chart-card full-width">
-                        <h4>Position distribution</h4>
-                        <canvas id="positionChart"></canvas>
+                        <h4>💼 Position Distribution</h4>
+                        <div class="chart-canvas-container">
+                            <canvas id="positionChart"></canvas>
+                        </div>
                     </div>
                 </div>
             `;
@@ -208,30 +234,34 @@
                         {
                             label: "Age",
                             data: metrics.Age,
-                            backgroundColor: "rgba(0, 224, 255, 0.7)",
-                            borderColor: "rgba(0, 224, 255, 1)",
-                            borderWidth: 1
+                            backgroundColor: "rgba(0, 242, 254, 0.75)",
+                            borderColor: "#00f2fe",
+                            borderWidth: 1.5,
+                            borderRadius: 6
                         },
                         {
-                            label: "Salary",
+                            label: "Salary ($)",
                             data: metrics.Salary,
-                            backgroundColor: "rgba(92, 159, 255, 0.7)",
-                            borderColor: "rgba(92, 159, 255, 1)",
-                            borderWidth: 1
+                            backgroundColor: "rgba(99, 102, 241, 0.75)",
+                            borderColor: "#6366f1",
+                            borderWidth: 1.5,
+                            borderRadius: 6
                         },
                         {
-                            label: "YOE",
+                            label: "YOE (Years)",
                             data: metrics.YOE,
-                            backgroundColor: "rgba(255, 193, 7, 0.7)",
-                            borderColor: "rgba(255, 193, 7, 1)",
-                            borderWidth: 1
+                            backgroundColor: "rgba(245, 158, 11, 0.75)",
+                            borderColor: "#f59e0b",
+                            borderWidth: 1.5,
+                            borderRadius: 6
                         },
                         {
                             label: "Bonus %",
                             data: metrics.BonusPercent,
-                            backgroundColor: "rgba(102, 187, 106, 0.7)",
-                            borderColor: "rgba(102, 187, 106, 1)",
-                            borderWidth: 1
+                            backgroundColor: "rgba(16, 185, 129, 0.75)",
+                            borderColor: "#10b981",
+                            borderWidth: 1.5,
+                            borderRadius: 6
                         }
                     ]
                 },
@@ -239,16 +269,15 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        x: { stacked: false, ticks: { color: "#ffffff" } },
+                        x: { 
+                            grid: { display: false }
+                        },
                         y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: "#ffffff"
-                            }
+                            beginAtZero: true
                         }
                     },
                     plugins: {
-                        legend: { labels: { color: "#ffffff" } }
+                        legend: { position: 'bottom' }
                     }
                 }
             });
@@ -257,19 +286,19 @@
             pieChart = new Chart(pieCtx, {
                 type: "pie",
                 data: {
-                    labels: ["Expert","Not Expert"],
+                    labels: ["Expert Investor", "Not Expert"],
                     datasets: [{
                         data: [expertise.yes, expertise.no],
-                        backgroundColor: ["#00e0ff", "#ff6384"],
-                        borderColor: ["#00bcd4", "#ff4d6d"],
-                        borderWidth: 1
+                        backgroundColor: ["#10b981", "#ef4444"],
+                        borderColor: "rgba(255, 255, 255, 0.15)",
+                        borderWidth: 2
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { labels: { color: "#ffffff" } }
+                        legend: { position: 'bottom' }
                     }
                 }
             });
@@ -280,24 +309,47 @@
                 data: {
                     labels: Object.keys(positions),
                     datasets: [{
-                        label: "Position count",
+                        label: "Position Count",
                         data: Object.values(positions),
-                        backgroundColor: "rgba(255, 159, 64, 0.7)",
-                        borderColor: "rgba(255, 159, 64, 1)",
-                        borderWidth: 1
+                        backgroundColor: "rgba(129, 140, 248, 0.8)",
+                        borderColor: "#818cf8",
+                        borderWidth: 1.5,
+                        borderRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { beginAtZero: true, ticks: { color: "#ffffff" } }
+                        x: { grid: { display: false } },
+                        y: { 
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
+                        }
                     },
                     plugins: {
-                        legend: { labels: { color: "#ffffff" } }
+                        legend: { display: false }
                     }
                 }
             });
+        }
+
+        // Sidebar tabs switching logic
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            document.getElementById(tabId).classList.add('active');
+            
+            // Find active button
+            const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
         }
 
         window.onload = updateTable;
@@ -309,121 +361,162 @@
             <h1>TAXISYS</h1>
             <p>Structured investor data entry, analysis, and record management.</p>
         </div>
-        <button type="button" onclick="updateTable()">Refresh Table</button>
+        <button type="button" onclick="updateTable()">🔄 Refresh Grid</button>
     </header>
 
     <div class="main-container">
         <div class="left-panel">
-            <h2>📊 Add New Investor</h2>
-            <form onsubmit="submitForm(event)" class="data-form">
-                <label for="name">Name</label>
-                <input type="text" name="name" required>
+            <h2>⚙️ Work Center</h2>
+            
+            <!-- Segmented Switch Controller -->
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" onclick="switchTab('tab-add')">➕ Add Record</button>
+                <button class="tab-btn" onclick="switchTab('tab-modify')">✏️ Modify</button>
+                <button class="tab-btn" onclick="switchTab('tab-explore')">🔍 Explore</button>
+            </div>
 
-                <label for="age">Age</label>
-                <input type="number" name="age" required>
+            <!-- Tab 1: Add New Investor -->
+            <div id="tab-add" class="tab-content active">
+                <h3>📊 Add New Investor</h3>
+                <form onsubmit="submitForm(event)" class="data-form">
+                    <label for="name">Full Name</label>
+                    <input type="text" name="name" placeholder="John Doe" required>
 
-                <label for="salary">Salary</label>
-                <input type="number" name="salary" required>
+                    <label for="age">Age</label>
+                    <input type="number" name="age" placeholder="30" required>
 
-                <label for="position">Position</label>
-                <input type="text" name="position" required>
+                    <label for="salary">Salary ($)</label>
+                    <input type="number" name="salary" placeholder="85000" required>
 
-                <label for="yoe">Years of Experience</label>
-                <input type="number" name="yoe" required>
+                    <label for="position">Position</label>
+                    <input type="text" name="position" placeholder="Portfolio Manager" required>
 
-                <label for="bonus_percent">Bonus Percentage</label>
-                <input type="number" step="0.1" name="bonus_percent" required>
+                    <label for="yoe">Years of Experience</label>
+                    <input type="number" name="yoe" placeholder="5" required>
 
-                <label for="investment_expert">Investment Expertise</label>
-                <select name="investment_expert" required>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
-                </select>
+                    <label for="bonus_percent">Bonus Percentage (%)</label>
+                    <input type="number" step="0.1" name="bonus_percent" placeholder="10.5" required>
 
-                <button type="submit">➕ Add Entry</button>
-            </form>
+                    <label for="investment_expert">Investment Expertise</label>
+                    <select name="investment_expert" required>
+                        <option value="yes">Yes (Expert)</option>
+                        <option value="no">No (Non-Expert)</option>
+                    </select>
 
-            <div class="action-group">
-                <form action="/analyze" method="post" class="secondary-form">
-                    <button type="submit">🔍 Analyze All Data</button>
-                </form>
-
-                <form action="/fetch_person" method="post" class="secondary-form">
-                    <label for="fetch_name">Search Investor</label>
-                    <input type="text" name="fetch_name" placeholder="Enter name..." required>
-                    <button type="submit">👤 Fetch Details</button>
-                </form>
-
-                <form onsubmit="comparePeople(event)" class="secondary-form">
-                    <label for="compare_names">Compare Investors</label>
-                    <input type="text" name="compare_names" placeholder="Name1, Name2, ..." required>
-                    <button type="submit">📊 Compare</button>
-                </form>
-
-                <form onsubmit="updatePerson(event)" class="secondary-form">
-                    <label for="update_name">Update Investor by Name</label>
-                    <input type="text" name="update_name" placeholder="Existing name" required>
-                    <div class="form-grid">
-                        <input type="number" name="update_age" placeholder="Age">
-                        <input type="number" step="0.1" name="update_salary" placeholder="Salary">
-                        <input type="text" name="update_position" placeholder="Position">
-                        <input type="number" name="update_yoe" placeholder="YOE">
-                        <input type="number" step="0.1" name="update_bonus_percent" placeholder="Bonus %">
-                        <select name="update_investment_expert">
-                            <option value="">Expertise</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-                    <button type="submit">✏️ Update</button>
-                </form>
-
-                <form onsubmit="deletePerson(event)" class="secondary-form">
-                    <label for="delete_name">Delete Investor by Name</label>
-                    <input type="text" name="delete_name" placeholder="Enter name..." required>
-                    <button type="submit">🗑️ Delete</button>
+                    <button type="submit">➕ Add Entry</button>
                 </form>
             </div>
 
-            {% if message %}
-                <div class="message-box success">{{ message }}</div>
-            {% endif %}
+            <!-- Tab 2: Modify Records -->
+            <div id="tab-modify" class="tab-content">
+                <h3>✏️ Update Record</h3>
+                <form onsubmit="updatePerson(event)" class="secondary-form">
+                    <label for="update_name">Target Name</label>
+                    <input type="text" name="update_name" placeholder="Name of existing record" required>
+                    
+                    <label>Updated Specifications</label>
+                    <div class="form-grid">
+                        <input type="number" name="update_age" placeholder="New Age">
+                        <input type="number" step="0.1" name="update_salary" placeholder="New Salary ($)">
+                        <input type="text" name="update_position" placeholder="New Position">
+                        <input type="number" name="update_yoe" placeholder="New YOE">
+                        <input type="number" step="0.1" name="update_bonus_percent" placeholder="New Bonus %">
+                        <select name="update_investment_expert">
+                            <option value="">Expertise (Keep original)</option>
+                            <option value="yes">Yes (Expert)</option>
+                            <option value="no">No (Non-Expert)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-secondary">✏️ Apply Updates</button>
+                </form>
 
-            <div id="live-message" class="message-box success"></div>
-            <div id="live-error" class="message-box error"></div>
+                <hr style="margin: 25px 0; border: none; border-top: 1px solid rgba(255,255,255,0.08);" />
+
+                <h3>🗑️ Delete Record</h3>
+                <form onsubmit="deletePerson(event)" class="secondary-form">
+                    <label for="delete_name">Target Name</label>
+                    <input type="text" name="delete_name" placeholder="Name of record to delete..." required>
+                    <button type="submit" class="btn-danger">🗑️ Delete Entry</button>
+                </form>
+            </div>
+
+            <!-- Tab 3: Explore & AI Analytics -->
+            <div id="tab-explore" class="tab-content">
+                <h3>🤖 AI ML Analysis</h3>
+                <form action="/analyze" method="post" class="secondary-form">
+                    <button type="submit">🔍 Run Prediction Engine</button>
+                </form>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid rgba(255,255,255,0.08);" />
+
+                <h3>👤 Search Details</h3>
+                <form action="/fetch_person" method="post" class="secondary-form">
+                    <label for="fetch_name">Investor Name</label>
+                    <input type="text" name="fetch_name" placeholder="Enter name to fetch details..." required>
+                    <button type="submit" class="btn-secondary">👤 Fetch Details</button>
+                </form>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid rgba(255,255,255,0.08);" />
+
+                <h3>📊 Compare Investors</h3>
+                <form onsubmit="comparePeople(event)" class="secondary-form">
+                    <label for="compare_names">Investors list</label>
+                    <input type="text" name="compare_names" placeholder="Name1, Name2, Name3..." required>
+                    <button type="submit" class="btn-secondary">📊 Run Comparison</button>
+                </form>
+            </div>
+
+            <!-- Real-Time Alerts Panel -->
+            <div id="live-message" class="message-box success" style="display: none;"></div>
+            <div id="live-error" class="message-box error" style="display: none;"></div>
+
+            {% if message %}
+                <div class="message-box success">✨ {{ message }}</div>
+            {% endif %}
 
             {% if error %}
-                <div class="message-box error">{{ error }}</div>
+                <div class="message-box error">⚠️ {{ error }}</div>
             {% endif %}
 
+            <!-- Inline fetched query results -->
             {% if person_info %}
                 <div class="insight-box">
-                    <h3>👤 Investor Details</h3>
+                    <h3>👤 Investor Profile</h3>
                     <ul>
                         {% for key, value in person_info.items() %}
-                            <li><strong>{{ key }}:</strong> {{ value }}</li>
+                            <li>
+                                <span>{{ key | replace('_', ' ') | capitalize }}</span>
+                                <strong>
+                                    {% if key == 'salary' %}
+                                        ${{ parseFloat(value) | default(value) }}
+                                    {% else %}
+                                        {{ value }}
+                                    {% endif %}
+                                </strong>
+                            </li>
                         {% endfor %}
                     </ul>
                 </div>
             {% endif %}
 
+            <!-- Inline ML Analysis Predictions results -->
             {% if prediction %}
                 <div class="insight-box">
-                    <h3>📈 Stock Insight</h3>
-                    <p><strong>{{ prediction }}</strong></p>
+                    <h3>📈 ML Pipeline Insight</h3>
+                    <p style="font-size: 13.5px; margin-bottom: 12px; line-height: 1.5;">{{ prediction }}</p>
                     <ul>
-                        <li><strong>Total Entries:</strong> {{ count }}</li>
-                        <li><strong>Increases:</strong> {{ inc }}</li>
-                        <li><strong>Decreases:</strong> {{ dec }}</li>
+                        <li><span>Analyzed Entities</span> <strong>{{ count }}</strong></li>
+                        <li><span>Predicted Stock Increase</span> <strong style="color: #34d399;">{{ inc }}</strong></li>
+                        <li><span>Predicted Stock Decrease</span> <strong style="color: #f87171;">{{ dec }}</strong></li>
                     </ul>
                 </div>
             {% endif %}
         </div>
 
         <div class="right-panel">
-            <h3>📋 Submitted Data</h3>
+            <h3>📋 Grid Spreadsheet</h3>
             <div id="table-container" class="table-container">
-                <!-- Data table will load here -->
+                <!-- Flask dynamic table content -->
             </div>
             <div id="compare-results" class="compare-results"></div>
         </div>
